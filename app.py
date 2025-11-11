@@ -1,15 +1,14 @@
 import streamlit as st
 import hashlib
-from database import get_connection, init_db
+from database import get_connection, init_db, add_barang, list_barang, add_penawaran, get_highest_bid, get_bid_history
 from datetime import datetime, timedelta
 
 # Initialize DB
 init_db()
-
 st.set_page_config(page_title="Sistem Lelang", page_icon="💰")
 
 # ==========================
-# Helper functions
+# Helper
 # ==========================
 def hash_pass(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
@@ -23,24 +22,6 @@ def check_login(username, password):
     if row and hash_pass(password) == row[0]:
         return row[1]
     return None
-
-def add_barang(nama, kategori, harga, penjual, durasi_menit=60):
-    conn = get_connection()
-    c = conn.cursor()
-    mulai = datetime.now()
-    selesai = mulai + timedelta(minutes=durasi_menit)
-    c.execute("INSERT INTO barang (nama_barang, kategori, harga_awal, penjual, waktu_mulai, waktu_selesai) VALUES (?, ?, ?, ?, ?, ?)",
-              (nama, kategori, harga, penjual, mulai, selesai))
-    conn.commit()
-    conn.close()
-
-def list_barang():
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT id_barang, nama_barang, kategori, harga_awal, penjual, status FROM barang")
-    items = c.fetchall()
-    conn.close()
-    return items
 
 # ==========================
 # Session State
@@ -96,16 +77,16 @@ if st.session_state.logged_in and st.session_state.role == "admin":
             add_barang(nama, kategori, harga, st.session_state.user, durasi)
             st.success(f"Barang '{nama}' berhasil ditambahkan!")
 
-    st.subheader("Daftar Barang")
+    st.subheader("Daftar Barang & Riwayat Penawaran")
     items = list_barang()
     for item in items:
-    st.write(f"ID:{item[0]} | {item[1]}")  # ✅ 4 spasi indent
-    history = get_bid_history(item[0])
-    if history:
-        for h in history:
-            st.write(f"{h[0]} : {h[1]} ({h[2]})")
-    else:
-        st.write("Belum ada penawaran.")
+        st.write(f"ID:{item[0]} | {item[1]} | Kategori: {item[2]} | Harga Awal: {item[3]} | Penjual: {item[4]} | Status: {item[5]}")
+        history = get_bid_history(item[0])
+        if history:
+            for h in history:
+                st.write(f"{h[0]} : {h[1]} ({h[2]})")
+        else:
+            st.write("Belum ada penawaran.")
 
     st.subheader("Ganti Password Admin")
     with st.form("change_pw_form"):
@@ -125,28 +106,16 @@ if st.session_state.logged_in and st.session_state.role == "admin":
                 conn.close()
                 st.success("Password berhasil diubah!")
 
-        st.subheader("Riwayat Penawaran Barang")
-    for item in items:
-    st.write(f"ID:{item[0]} | {item[1]}")
-    history = get_bid_history(item[0])
-    if history:
-        for h in history:
-            st.write(f"{h[0]} : {h[1]} ({h[2]})")
-    else:
-        st.write("Belum ada penawaran.")
-
 # ==========================
 # User Dashboard
 # ==========================
 if st.session_state.logged_in and st.session_state.role == "user":
     st.title("🛒 Dashboard User")
     st.subheader("Barang yang Dilelang")
-
     items = list_barang()
     for item in items:
         if item[5] == "aktif":
             st.write(f"ID:{item[0]} | {item[1]} | Kategori: {item[2]} | Harga Awal: {item[3]} | Penjual: {item[4]}")
-            
             highest = get_highest_bid(item[0])
             st.write(f"💰 Tawaran tertinggi saat ini: {highest}")
 
@@ -157,13 +126,7 @@ if st.session_state.logged_in and st.session_state.role == "user":
                     add_penawaran(item[0], st.session_state.user, bid)
                     st.success(f"Tawaran {bid} berhasil dikirim!")
 
-            # Riwayat penawaran
             st.write("Riwayat penawaran:")
             history = get_bid_history(item[0])
             for h in history:
                 st.write(f"{h[0]} : {h[1]} ({h[2]})")
-
-
-
-
-
