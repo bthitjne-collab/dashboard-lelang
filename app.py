@@ -1,16 +1,15 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-import sqlite3
 from database import get_connection, init_db
 
 st.set_page_config(page_title="Lelang Barang", layout="wide")
 
-# Inisialisasi DB
+# === Inisialisasi Database ===
 init_db()
 conn = get_connection()
 
-# === Login Section ===
+# === FUNGSI LOGIN & REGISTER ===
 def login_user(username, password):
     c = conn.cursor()
     c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
@@ -22,17 +21,17 @@ def register_user(username, password, role="user"):
         c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (username, password, role))
         conn.commit()
         return True
-    except sqlite3.IntegrityError:
+    except:
         return False
 
-# === Session State ===
+# === Session ===
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# === Login Form ===
+# === LOGIN PAGE ===
 if not st.session_state.user:
     st.title("🔐 Login ke Dashboard Lelang")
-    tab1, tab2 = st.tabs(["Login", "Register"])
+    tab1, tab2 = st.tabs(["Login", "Daftar Akun"])
 
     with tab1:
         username = st.text_input("Username")
@@ -47,24 +46,23 @@ if not st.session_state.user:
                 st.error("Username atau password salah!")
 
     with tab2:
-        new_user = st.text_input("Username Baru")
-        new_pass = st.text_input("Password Baru", type="password")
-        if st.button("Register"):
-            if register_user(new_user, new_pass):
-                st.success("User berhasil dibuat, silakan login.")
+        uname = st.text_input("Username Baru")
+        upass = st.text_input("Password Baru", type="password")
+        if st.button("Daftar"):
+            if register_user(uname, upass):
+                st.success("Akun berhasil dibuat, silakan login.")
             else:
                 st.error("Username sudah digunakan.")
 else:
     user = st.session_state.user
-    st.sidebar.success(f"Login sebagai: {user[1]} ({user[3]})")
+    st.sidebar.success(f"👤 {user[1]} ({user[3]})")
     if st.sidebar.button("🚪 Logout"):
         st.session_state.user = None
         st.rerun()
 
-    # === Navigasi ===
     menu = st.sidebar.radio("Navigasi", ["Dashboard", "Barang", "Penjualan", "Manajemen User"])
 
-    # === Dashboard ===
+    # === DASHBOARD ===
     if menu == "Dashboard":
         st.title("📊 Dashboard Penjualan Lelang Barang")
 
@@ -84,16 +82,17 @@ else:
             penjualan['tanggal'] = pd.to_datetime(penjualan['tanggal'])
             penjualan['bulan'] = penjualan['tanggal'].dt.to_period('M').astype(str)
             grafik = penjualan.groupby('bulan')['harga_terjual'].sum().reset_index()
-            chart = alt.Chart(grafik).mark_bar().encode(x='bulan', y='harga_terjual')
+            chart = alt.Chart(grafik).mark_bar(color="#1f77b4").encode(x='bulan', y='harga_terjual')
             st.altair_chart(chart, use_container_width=True)
 
-    # === CRUD Barang ===
+    # === CRUD BARANG ===
     elif menu == "Barang":
         st.header("📦 Manajemen Barang")
-        barang_df = pd.read_sql_query("SELECT * FROM barang", conn)
-        st.dataframe(barang_df)
 
-        st.subheader("Tambah Barang Baru")
+        barang_df = pd.read_sql_query("SELECT * FROM barang", conn)
+        st.dataframe(barang_df, use_container_width=True)
+
+        st.subheader("➕ Tambah Barang Baru")
         nama = st.text_input("Nama Barang")
         kategori = st.text_input("Kategori")
         harga = st.number_input("Harga Awal", min_value=0)
@@ -105,13 +104,40 @@ else:
             st.success("Barang berhasil ditambahkan!")
             st.rerun()
 
-    # === CRUD Penjualan ===
+        st.subheader("📝 Edit / Hapus Barang")
+        id_barang = st.number_input("Masukkan ID Barang", min_value=1, step=1)
+        if st.button("Load Barang"):
+            data = conn.execute("SELECT * FROM barang WHERE id_barang=?", (id_barang,)).fetchone()
+            if data:
+                nama_edit = st.text_input("Nama Barang", value=data[1])
+                kategori_edit = st.text_input("Kategori", value=data[2])
+                harga_edit = st.number_input("Harga Awal", min_value=0, value=data[3])
+                status_edit = st.selectbox("Status", ["Dilelang", "Terjual"], index=0 if data[4]=="Dilelang" else 1)
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Update Barang"):
+                        conn.execute("""
+                            UPDATE barang SET nama_barang=?, kategori=?, harga_awal=?, status=? WHERE id_barang=?
+                        """, (nama_edit, kategori_edit, harga_edit, status_edit, id_barang))
+                        conn.commit()
+                        st.success("Barang berhasil diperbarui!")
+                        st.rerun()
+                with col2:
+                    if st.button("Hapus Barang"):
+                        conn.execute("DELETE FROM barang WHERE id_barang=?", (id_barang,))
+                        conn.commit()
+                        st.warning("Barang berhasil dihapus!")
+                        st.rerun()
+            else:
+                st.error("Barang tidak ditemukan!")
+
+    # === CRUD PENJUALAN ===
     elif menu == "Penjualan":
         st.header("💰 Manajemen Penjualan")
         penjualan_df = pd.read_sql_query("SELECT * FROM penjualan", conn)
-        st.dataframe(penjualan_df)
+        st.dataframe(penjualan_df, use_container_width=True)
 
-        st.subheader("Tambah Transaksi Penjualan")
+        st.subheader("➕ Tambah Penjualan")
         id_barang = st.number_input("ID Barang", min_value=1)
         tanggal = st.date_input("Tanggal")
         harga_terjual = st.number_input("Harga Terjual", min_value=0)
@@ -123,13 +149,74 @@ else:
             st.success("Penjualan berhasil ditambahkan!")
             st.rerun()
 
-    # === CRUD User (Admin Only) ===
+        st.subheader("📝 Edit / Hapus Penjualan")
+        id_penjualan = st.number_input("Masukkan ID Penjualan", min_value=1, step=1)
+        if st.button("Load Penjualan"):
+            data = conn.execute("SELECT * FROM penjualan WHERE id_penjualan=?", (id_penjualan,)).fetchone()
+            if data:
+                id_barang_edit = st.number_input("ID Barang", min_value=1, value=data[1])
+                tanggal_edit = st.date_input("Tanggal", pd.to_datetime(data[2]))
+                harga_edit = st.number_input("Harga Terjual", min_value=0, value=data[3])
+                pembeli_edit = st.text_input("Pembeli", value=data[4])
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Update Penjualan"):
+                        conn.execute("""
+                            UPDATE penjualan SET id_barang=?, tanggal=?, harga_terjual=?, pembeli=? WHERE id_penjualan=?
+                        """, (id_barang_edit, tanggal_edit, harga_edit, pembeli_edit, id_penjualan))
+                        conn.commit()
+                        st.success("Penjualan berhasil diperbarui!")
+                        st.rerun()
+                with col2:
+                    if st.button("Hapus Penjualan"):
+                        conn.execute("DELETE FROM penjualan WHERE id_penjualan=?", (id_penjualan,))
+                        conn.commit()
+                        st.warning("Penjualan dihapus!")
+                        st.rerun()
+            else:
+                st.error("Data penjualan tidak ditemukan!")
+
+    # === CRUD USER ===
     elif menu == "Manajemen User":
         if user[3] != "admin":
-            st.error("Hanya admin yang boleh mengakses halaman ini.")
+            st.error("Hanya admin yang dapat mengakses halaman ini.")
         else:
-            st.header("👤 Manajemen User")
+            st.header("👥 Manajemen User")
             users_df = pd.read_sql_query("SELECT id, username, role FROM users", conn)
-            st.dataframe(users_df)
+            st.dataframe(users_df, use_container_width=True)
 
-            st.subheader("Tambah User Baru")
+            st.subheader("➕ Tambah User Baru")
+            uname = st.text_input("Username")
+            upass = st.text_input("Password", type="password")
+            role = st.selectbox("Role", ["admin", "user"])
+            if st.button("Tambah User"):
+                if register_user(uname, upass, role):
+                    st.success("User baru berhasil ditambahkan!")
+                    st.rerun()
+                else:
+                    st.error("Username sudah digunakan.")
+
+            st.subheader("📝 Edit / Hapus User")
+            id_user = st.number_input("Masukkan ID User", min_value=1, step=1)
+            if st.button("Load User"):
+                data = conn.execute("SELECT * FROM users WHERE id=?", (id_user,)).fetchone()
+                if data:
+                    uname_edit = st.text_input("Username", value=data[1])
+                    upass_edit = st.text_input("Password", value=data[2], type="password")
+                    role_edit = st.selectbox("Role", ["admin", "user"], index=0 if data[3]=="admin" else 1)
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Update User"):
+                            conn.execute("UPDATE users SET username=?, password=?, role=? WHERE id=?",
+                                         (uname_edit, upass_edit, role_edit, id_user))
+                            conn.commit()
+                            st.success("User berhasil diperbarui!")
+                            st.rerun()
+                    with col2:
+                        if st.button("Hapus User"):
+                            conn.execute("DELETE FROM users WHERE id=?", (id_user,))
+                            conn.commit()
+                            st.warning("User berhasil dihapus!")
+                            st.rerun()
+                else:
+                    st.error("User tidak ditemukan!")
