@@ -12,17 +12,6 @@ def init_db():
     conn = get_connection()
     c = conn.cursor()
 
-# Tambahkan di init_db() setelah tabel barang
-c.execute("""
-CREATE TABLE IF NOT EXISTS penawaran (
-    id_penawaran INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_barang INTEGER,
-    username TEXT,
-    harga_tawar INTEGER,
-    waktu DATETIME DEFAULT CURRENT_TIMESTAMP
-)
-""")
-
     # === USERS ===
     c.execute("""
     CREATE TABLE IF NOT EXISTS users (
@@ -57,7 +46,44 @@ CREATE TABLE IF NOT EXISTS penawaran (
     )
     """)
 
-    def add_penawaran(id_barang, username, harga):
+    # === PENAWARAN ===
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS penawaran (
+        id_penawaran INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_barang INTEGER,
+        username TEXT,
+        harga_tawar INTEGER,
+        waktu DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+# ==========================
+# Helper functions
+# ==========================
+def add_barang(nama, kategori, harga, penjual, durasi_menit=60):
+    conn = get_connection()
+    c = conn.cursor()
+    mulai = datetime.now()
+    selesai = mulai + timedelta(minutes=durasi_menit)
+    c.execute(
+        "INSERT INTO barang (nama_barang, kategori, harga_awal, penjual, waktu_mulai, waktu_selesai) VALUES (?, ?, ?, ?, ?, ?)",
+        (nama, kategori, harga, penjual, mulai, selesai)
+    )
+    conn.commit()
+    conn.close()
+
+def list_barang():
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT id_barang, nama_barang, kategori, harga_awal, penjual, status FROM barang")
+    items = c.fetchall()
+    conn.close()
+    return items
+
+def add_penawaran(id_barang, username, harga):
     conn = get_connection()
     c = conn.cursor()
     c.execute("INSERT INTO penawaran (id_barang, username, harga_tawar) VALUES (?, ?, ?)",
@@ -80,6 +106,3 @@ def get_bid_history(id_barang):
     rows = c.fetchall()
     conn.close()
     return rows
-    
-    conn.commit()
-    conn.close()
