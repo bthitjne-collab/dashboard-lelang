@@ -1,4 +1,5 @@
 streamlit
 pandas
 altair
-sqlite3-binary
+
+
