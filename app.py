@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
+import datetime
 from database import get_connection, init_db
 
 st.set_page_config(page_title="Lelang Barang", layout="wide")
@@ -220,3 +221,49 @@ else:
                             st.rerun()
                 else:
                     st.error("User tidak ditemukan!")
+
+
+def tambah_aktivitas(username, aksi):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("INSERT INTO aktivitas (username, aksi) VALUES (?, ?)", (username, aksi))
+    conn.commit()
+    conn.close()
+
+def tambah_penawaran(id_barang, username, harga_tawar):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("INSERT INTO penawaran (id_barang, username, harga_tawar) VALUES (?, ?, ?)", (id_barang, username, harga_tawar))
+    tambah_aktivitas(username, f"Menawar Rp{harga_tawar} pada barang #{id_barang}")
+    conn.commit()
+    conn.close()
+
+def cek_pemenang_otomatis():
+    """Cek semua lelang yang sudah selesai dan umumkan pemenang"""
+    conn = get_connection()
+    c = conn.cursor()
+    now = datetime.datetime.now()
+
+    c.execute("SELECT id_barang FROM barang WHERE waktu_selesai <= ? AND status='aktif'", (now,))
+    barang_selesai = c.fetchall()
+
+    for (id_barang,) in barang_selesai:
+        # cari penawaran tertinggi
+        c.execute("SELECT username, MAX(harga_tawar) FROM penawaran WHERE id_barang=?", (id_barang,))
+        hasil = c.fetchone()
+        if hasil and hasil[0]:
+            pembeli, harga_tertinggi = hasil
+            # simpan ke penjualan
+            c.execute("""
+                INSERT INTO penjualan (id_barang, tanggal, harga_terjual, pembeli)
+                VALUES (?, ?, ?, ?)
+            """, (id_barang, now.date(), harga_tertinggi, pembeli))
+            # ubah status barang
+            c.execute("UPDATE barang SET status='terjual' WHERE id_barang=?", (id_barang,))
+            tambah_aktivitas(pembeli, f"Menang lelang barang #{id_barang} dengan harga Rp{harga_tertinggi}")
+        else:
+            # tidak ada penawaran
+            c.execute("UPDATE barang SET status='gagal' WHERE id_barang=?", (id_barang,))
+    conn.commit()
+    conn.close()
+
