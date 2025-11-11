@@ -12,6 +12,17 @@ def init_db():
     conn = get_connection()
     c = conn.cursor()
 
+# Tambahkan di init_db() setelah tabel barang
+c.execute("""
+CREATE TABLE IF NOT EXISTS penawaran (
+    id_penawaran INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_barang INTEGER,
+    username TEXT,
+    harga_tawar INTEGER,
+    waktu DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
     # === USERS ===
     c.execute("""
     CREATE TABLE IF NOT EXISTS users (
@@ -46,5 +57,29 @@ def init_db():
     )
     """)
 
+    def add_penawaran(id_barang, username, harga):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("INSERT INTO penawaran (id_barang, username, harga_tawar) VALUES (?, ?, ?)",
+              (id_barang, username, harga))
+    conn.commit()
+    conn.close()
+
+def get_highest_bid(id_barang):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT MAX(harga_tawar) FROM penawaran WHERE id_barang=?", (id_barang,))
+    row = c.fetchone()[0]
+    conn.close()
+    return row if row else 0
+
+def get_bid_history(id_barang):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT username, harga_tawar, waktu FROM penawaran WHERE id_barang=? ORDER BY waktu DESC", (id_barang,))
+    rows = c.fetchall()
+    conn.close()
+    return rows
+    
     conn.commit()
     conn.close()
