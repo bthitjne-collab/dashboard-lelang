@@ -11,28 +11,46 @@ def init_db():
     conn = get_connection()
     c = conn.cursor()
 
-    # === Tabel Users ===
+    # === USERS (User System Lengkap) ===
     c.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE,
         password TEXT,
-        role TEXT
+        email TEXT,
+        saldo INTEGER DEFAULT 0,
+        role TEXT,
+        status TEXT DEFAULT 'aktif'
     )
     """)
 
-    # === Tabel Barang ===
+    # === BARANG (Item yang Dilelang) ===
     c.execute("""
     CREATE TABLE IF NOT EXISTS barang (
         id_barang INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_barang TEXT,
         kategori TEXT,
         harga_awal INTEGER,
-        status TEXT
+        penjual TEXT,
+        status TEXT DEFAULT 'aktif',
+        waktu_mulai DATETIME,
+        waktu_selesai DATETIME,
+        gambar TEXT
     )
     """)
 
-    # === Tabel Penjualan ===
+    # === PENAWARAN (Bidding System) ===
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS penawaran (
+        id_penawaran INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_barang INTEGER,
+        username TEXT,
+        harga_tawar INTEGER,
+        waktu DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # === PENJUALAN (Barang Terjual) ===
     c.execute("""
     CREATE TABLE IF NOT EXISTS penjualan (
         id_penjualan INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,10 +61,21 @@ def init_db():
     )
     """)
 
-    # User default admin
+    # === AKTIVITAS (Log Aktivitas User) ===
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS aktivitas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        aksi TEXT,
+        waktu DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # === USER DEFAULT ADMIN ===
     c.execute("SELECT * FROM users WHERE username='admin'")
     if not c.fetchone():
-        c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", ("admin", "admin123", "admin"))
+        c.execute("INSERT INTO users (username, password, email, role, status) VALUES (?, ?, ?, ?, ?)",
+                  ("admin", "admin123", "admin@admin.com", "admin", "aktif"))
 
     conn.commit()
     conn.close()
