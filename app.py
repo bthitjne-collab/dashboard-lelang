@@ -4,52 +4,55 @@ import sqlite3
 import os
 import altair as alt
 
-# === Buat atau sambungkan ke database ===
+st.set_page_config(page_title="Dashboard Lelang Barang", layout="wide")
+
+# === Buat database SQLite dari nol di runtime (tidak pakai file GitHub) ===
 DB_PATH = "lelang.db"
 
-# Jika database belum ada atau rusak, buat baru dengan data contoh
-if not os.path.exists(DB_PATH) or os.path.getsize(DB_PATH) < 100:
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS barang (
-        id_barang INTEGER PRIMARY KEY AUTOINCREMENT,
-        nama_barang TEXT,
-        kategori TEXT,
-        harga_awal INTEGER,
-        status TEXT
-    )
-    """)
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS penjualan (
-        id_penjualan INTEGER PRIMARY KEY AUTOINCREMENT,
-        id_barang INTEGER,
-        tanggal DATE,
-        harga_terjual INTEGER,
-        pembeli TEXT
-    )
-    """)
+# Selalu buat database baru (supaya tidak error "file is not a database")
+if os.path.exists(DB_PATH):
+    os.remove(DB_PATH)
 
-    # Data contoh
-    barang_data = [
-        ("Laptop ASUS", "Elektronik", 3500000, "Terjual"),
-        ("Kamera Canon", "Elektronik", 2500000, "Dilelang"),
-        ("Sepeda Gunung", "Olahraga", 1800000, "Terjual"),
-    ]
-    penjualan_data = [
-        (1, "2025-01-10", 4000000, "Andi"),
-        (3, "2025-02-05", 2100000, "Budi"),
-    ]
+conn = sqlite3.connect(DB_PATH)
 
-    conn.executemany("INSERT INTO barang (nama_barang, kategori, harga_awal, status) VALUES (?, ?, ?, ?)", barang_data)
-    conn.executemany("INSERT INTO penjualan (id_barang, tanggal, harga_terjual, pembeli) VALUES (?, ?, ?, ?)", penjualan_data)
-    conn.commit()
-else:
-    conn = sqlite3.connect(DB_PATH)
+# Buat tabel
+conn.execute("""
+CREATE TABLE barang (
+    id_barang INTEGER PRIMARY KEY AUTOINCREMENT,
+    nama_barang TEXT,
+    kategori TEXT,
+    harga_awal INTEGER,
+    status TEXT
+)
+""")
+conn.execute("""
+CREATE TABLE penjualan (
+    id_penjualan INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_barang INTEGER,
+    tanggal DATE,
+    harga_terjual INTEGER,
+    pembeli TEXT
+)
+""")
 
-# === Judul dashboard ===
+# Isi data contoh
+barang_data = [
+    ("Laptop ASUS", "Elektronik", 3500000, "Terjual"),
+    ("Kamera Canon", "Elektronik", 2500000, "Dilelang"),
+    ("Sepeda Gunung", "Olahraga", 1800000, "Terjual"),
+]
+penjualan_data = [
+    (1, "2025-01-10", 4000000, "Andi"),
+    (3, "2025-02-05", 2100000, "Budi"),
+]
+
+conn.executemany("INSERT INTO barang (nama_barang, kategori, harga_awal, status) VALUES (?, ?, ?, ?)", barang_data)
+conn.executemany("INSERT INTO penjualan (id_barang, tanggal, harga_terjual, pembeli) VALUES (?, ?, ?, ?)", penjualan_data)
+conn.commit()
+
+# === Tampilkan Dashboard ===
 st.title("📊 Dashboard Penjualan Lelang Barang")
 
-# Ambil data
 barang = pd.read_sql_query("SELECT * FROM barang", conn)
 penjualan = pd.read_sql_query("SELECT * FROM penjualan", conn)
 
@@ -70,7 +73,7 @@ grafik = penjualan.groupby('bulan')['harga_terjual'].sum().reset_index()
 
 chart = (
     alt.Chart(grafik)
-    .mark_bar()
+    .mark_bar(color="#1f77b4")
     .encode(x='bulan', y='harga_terjual', tooltip=['bulan', 'harga_terjual'])
     .properties(title='Total Penjualan per Bulan')
 )
