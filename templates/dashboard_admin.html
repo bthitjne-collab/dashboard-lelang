@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="navbar">
+    <h3>Halo, {{ user }} (Admin)</h3>
+    <a href="{{ url_for('change_password') }}">Ganti Password</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+  </div>
+
+  <div class="container">
+    <h2>Tambah Barang</h2>
+    <form method="POST" action="{{ url_for('add_item') }}">
+      <input type="text" name="nama_barang" placeholder="Nama Barang" required>
+      <input type="text" name="kategori" placeholder="Kategori" required>
+      <input type="number" name="harga_awal" placeholder="Harga Awal" required>
+      <button type="submit">Tambah</button>
+    </form>
+
+    <h2>Daftar Barang</h2>
+    <table>
+      <tr><th>ID</th><th>Nama</th><th>Kategori</th><th>Harga Awal</th><th>Status</th></tr>
+      {% for b in barang %}
+      <tr>
+        <td>{{ b[0] }}</td>
+        <td>{{ b[1] }}</td>
+        <td>{{ b[2] }}</td>
+        <td>{{ b[3] }}</td>
+        <td>{{ b[5] }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</body>
+</html>
