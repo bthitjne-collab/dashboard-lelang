@@ -1,125 +1,123 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+import streamlit as st
 import hashlib
 from database import get_connection, init_db
-from datetime import datetime
+from datetime import datetime, timedelta
 
-app = Flask(__name__)
-app.secret_key = "supersecretkey"
-
+# Initialize DB
 init_db()
 
-# ==========================
-# 🔐 LOGIN & LOGOUT
-# ==========================
-@app.route("/", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = hashlib.sha256(request.form["password"].encode()).hexdigest()
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
-        user = c.fetchone()
-        conn.close()
-
-        if user:
-            session["user"] = user[1]
-            session["role"] = user[5]
-            if user[5] == "admin":
-                return redirect(url_for("dashboard_admin"))
-            else:
-                return redirect(url_for("dashboard_user"))
-        else:
-            flash("Username atau password salah!", "error")
-    return render_template("login.html")
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
+st.set_page_config(page_title="Sistem Lelang", page_icon="💰")
 
 # ==========================
-# 🧑 DASHBOARD ADMIN
+# Helper functions
 # ==========================
-@app.route("/admin")
-def dashboard_admin():
-    if "user" not in session or session["role"] != "admin":
-        return redirect(url_for("login"))
+def hash_pass(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
 
+def check_login(username, password):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM barang")
-    barang = c.fetchall()
+    c.execute("SELECT password, role FROM users WHERE username=?", (username,))
+    row = c.fetchone()
     conn.close()
+    if row and hash_pass(password) == row[0]:
+        return row[1]
+    return None
 
-    return render_template("dashboard_admin.html", barang=barang, user=session["user"])
-
-# Tambah Barang
-@app.route("/admin/add_item", methods=["POST"])
-def add_item():
-    if "user" not in session or session["role"] != "admin":
-        return redirect(url_for("login"))
-
-    nama = request.form["nama_barang"]
-    kategori = request.form["kategori"]
-    harga = request.form["harga_awal"]
-    waktu_mulai = datetime.now()
-    waktu_selesai = datetime.now().replace(hour=datetime.now().hour + 1)
+def add_barang(nama, kategori, harga, penjual, durasi_menit=60):
     conn = get_connection()
     c = conn.cursor()
-    c.execute(
-        "INSERT INTO barang (nama_barang, kategori, harga_awal, penjual, waktu_mulai, waktu_selesai) VALUES (?, ?, ?, ?, ?, ?)",
-        (nama, kategori, harga, session["user"], waktu_mulai, waktu_selesai)
-    )
+    mulai = datetime.now()
+    selesai = mulai + timedelta(minutes=durasi_menit)
+    c.execute("INSERT INTO barang (nama_barang, kategori, harga_awal, penjual, waktu_mulai, waktu_selesai) VALUES (?, ?, ?, ?, ?, ?)",
+              (nama, kategori, harga, penjual, mulai, selesai))
     conn.commit()
     conn.close()
-    flash("Barang berhasil ditambahkan!", "success")
-    return redirect(url_for("dashboard_admin"))
 
-
-# ==========================
-# 🔑 ADMIN GANTI PASSWORD
-# ==========================
-@app.route("/admin/change_password", methods=["GET", "POST"])
-def change_password():
-    if "user" not in session or session["role"] != "admin":
-        return redirect(url_for("login"))
-
-    if request.method == "POST":
-        old = request.form["old_password"]
-        new = request.form["new_password"]
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("SELECT password FROM users WHERE username=?", (session["user"],))
-        current_pw = c.fetchone()[0]
-
-        if hashlib.sha256(old.encode()).hexdigest() != current_pw:
-            flash("Password lama salah!", "error")
-        else:
-            hashed = hashlib.sha256(new.encode()).hexdigest()
-            c.execute("UPDATE users SET password=? WHERE username=?", (hashed, session["user"]))
-            conn.commit()
-            flash("Password berhasil diubah!", "success")
-        conn.close()
-    return render_template("change_password.html", user=session["user"])
-
-# ==========================
-# 🧍 DASHBOARD USER
-# ==========================
-@app.route("/user")
-def dashboard_user():
-    if "user" not in session or session["role"] != "user":
-        return redirect(url_for("login"))
-
+def list_barang():
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM barang WHERE status='aktif'")
-    barang = c.fetchall()
+    c.execute("SELECT id_barang, nama_barang, kategori, harga_awal, penjual, status FROM barang")
+    items = c.fetchall()
     conn.close()
+    return items
 
-    return render_template("dashboard_user.html", barang=barang, user=session["user"])
+# ==========================
+# Sidebar: Login / Logout
+# ==========================
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user = ""
+    st.session_state.role = ""
 
+if not st.session_state.logged_in:
+    st.title("💰 Login Sistem Lelang")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        role = check_login(username, password)
+        if role:
+            st.session_state.logged_in = True
+            st.session_state.user = username
+            st.session_state.role = role
+            st.success(f"Login berhasil! Halo {username} ({role})")
+            st.experimental_rerun()
+        else:
+            st.error("Username atau password salah.")
+else:
+    st.sidebar.write(f"Logged in sebagai: {st.session_state.user} ({st.session_state.role})")
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.user = ""
+        st.session_state.role = ""
+        st.experimental_rerun()
 
-if __name__ == "__main__":
-    app.run(debug=True)
+# ==========================
+# Admin Dashboard
+# ==========================
+if st.session_state.logged_in and st.session_state.role == "admin":
+    st.title("🛠️ Dashboard Admin")
+    st.subheader("Tambah Barang Baru")
+    with st.form("add_barang_form"):
+        nama = st.text_input("Nama Barang")
+        kategori = st.text_input("Kategori")
+        harga = st.number_input("Harga Awal", min_value=0)
+        durasi = st.number_input("Durasi Lelang (menit)", min_value=1, value=60)
+        submitted = st.form_submit_button("Tambah Barang")
+        if submitted:
+            add_barang(nama, kategori, harga, st.session_state.user, durasi)
+            st.success(f"Barang '{nama}' berhasil ditambahkan!")
+
+    st.subheader("Daftar Barang")
+    items = list_barang()
+    for item in items:
+        st.write(f"ID:{item[0]} | {item[1]} | Kategori: {item[2]} | Harga Awal: {item[3]} | Penjual: {item[4]} | Status: {item[5]}")
+
+    st.subheader("Ganti Password Admin")
+    with st.form("change_pw_form"):
+        old = st.text_input("Password Lama", type="password")
+        new = st.text_input("Password Baru", type="password")
+        submitted = st.form_submit_button("Ubah Password")
+        if submitted:
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute("SELECT password FROM users WHERE username=?", (st.session_state.user,))
+            current_pw = c.fetchone()[0]
+            if hash_pass(old) != current_pw:
+                st.error("Password lama salah!")
+            else:
+                c.execute("UPDATE users SET password=? WHERE username=?", (hash_pass(new), st.session_state.user))
+                conn.commit()
+                conn.close()
+                st.success("Password berhasil diubah!")
+
+# ==========================
+# User Dashboard
+# ==========================
+if st.session_state.logged_in and st.session_state.role == "user":
+    st.title("🛒 Dashboard User")
+    st.subheader("Barang yang Dilelang")
+    items = list_barang()
+    for item in items:
+        if item[5] == "aktif":
+            st.write(f"ID:{item[0]} | {item[1]} | Kategori: {item[2]} | Harga Awal: {item[3]} | Penjual: {item[4]}")
