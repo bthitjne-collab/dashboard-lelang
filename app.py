@@ -99,7 +99,13 @@ if st.session_state.logged_in and st.session_state.role == "admin":
     st.subheader("Daftar Barang")
     items = list_barang()
     for item in items:
-        st.write(f"ID:{item[0]} | {item[1]} | Kategori: {item[2]} | Harga Awal: {item[3]} | Penjual: {item[4]} | Status: {item[5]}")
+    st.write(f"ID:{item[0]} | {item[1]}")  # ✅ 4 spasi indent
+    history = get_bid_history(item[0])
+    if history:
+        for h in history:
+            st.write(f"{h[0]} : {h[1]} ({h[2]})")
+    else:
+        st.write("Belum ada penawaran.")
 
     st.subheader("Ganti Password Admin")
     with st.form("change_pw_form"):
@@ -156,6 +162,7 @@ if st.session_state.logged_in and st.session_state.role == "user":
             history = get_bid_history(item[0])
             for h in history:
                 st.write(f"{h[0]} : {h[1]} ({h[2]})")
+
 
 
 
