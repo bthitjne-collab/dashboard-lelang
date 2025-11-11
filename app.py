@@ -119,13 +119,43 @@ if st.session_state.logged_in and st.session_state.role == "admin":
                 conn.close()
                 st.success("Password berhasil diubah!")
 
+        st.subheader("Riwayat Penawaran Barang")
+    for item in items:
+    st.write(f"ID:{item[0]} | {item[1]}")
+    history = get_bid_history(item[0])
+    if history:
+        for h in history:
+            st.write(f"{h[0]} : {h[1]} ({h[2]})")
+    else:
+        st.write("Belum ada penawaran.")
+
 # ==========================
 # User Dashboard
 # ==========================
 if st.session_state.logged_in and st.session_state.role == "user":
     st.title("🛒 Dashboard User")
     st.subheader("Barang yang Dilelang")
+
     items = list_barang()
     for item in items:
         if item[5] == "aktif":
             st.write(f"ID:{item[0]} | {item[1]} | Kategori: {item[2]} | Harga Awal: {item[3]} | Penjual: {item[4]}")
+            
+            highest = get_highest_bid(item[0])
+            st.write(f"💰 Tawaran tertinggi saat ini: {highest}")
+
+            with st.form(f"bid_form_{item[0]}"):
+                bid = st.number_input("Masukkan tawaran Anda", min_value=highest+1, step=1)
+                submitted = st.form_submit_button("Tawar")
+                if submitted:
+                    add_penawaran(item[0], st.session_state.user, bid)
+                    st.success(f"Tawaran {bid} berhasil dikirim!")
+
+            # Riwayat penawaran
+            st.write("Riwayat penawaran:")
+            history = get_bid_history(item[0])
+            for h in history:
+                st.write(f"{h[0]} : {h[1]} ({h[2]})")
+
+
+
