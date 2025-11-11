@@ -43,40 +43,48 @@ def list_barang():
     return items
 
 # ==========================
-# Sidebar: Login / Logout
+# Session State
 # ==========================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user = ""
     st.session_state.role = ""
 
+# ==========================
+# Login Form
+# ==========================
 if not st.session_state.logged_in:
     st.title("💰 Login Sistem Lelang")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        role = check_login(username, password)
-        if role:
-            st.session_state.logged_in = True
-            st.session_state.user = username
-            st.session_state.role = role
-            st.success(f"Login berhasil! Halo {username} ({role})")
-            st.experimental_rerun()
-        else:
-            st.error("Username atau password salah.")
-else:
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Login")
+        if submitted:
+            role = check_login(username, password)
+            if role:
+                st.session_state.logged_in = True
+                st.session_state.user = username
+                st.session_state.role = role
+                st.success(f"Login berhasil! Halo {username} ({role})")
+            else:
+                st.error("Username atau password salah.")
+
+# ==========================
+# Logout Sidebar
+# ==========================
+if st.session_state.logged_in:
     st.sidebar.write(f"Logged in sebagai: {st.session_state.user} ({st.session_state.role})")
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.user = ""
         st.session_state.role = ""
-        st.experimental_rerun()
 
 # ==========================
 # Admin Dashboard
 # ==========================
 if st.session_state.logged_in and st.session_state.role == "admin":
     st.title("🛠️ Dashboard Admin")
+
     st.subheader("Tambah Barang Baru")
     with st.form("add_barang_form"):
         nama = st.text_input("Nama Barang")
